@@ -58,7 +58,9 @@ PREFETCH_THRESHOLD = 256
 
 # Test parameters
 ENHANCED_OP_SIZE = 1024
-ENHANCED_OP_NUM = 100
+ENHANCED_OP_NUM = 10
+
+assert ENHANCED_OP_SIZE * ENHANCED_OP_NUM <= MAX_TOTAL_NUM_TOKENS, "Too many tokens for test"
 
 
 # =============================================================================

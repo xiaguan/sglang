@@ -181,6 +181,13 @@ class HostKVCache(abc.ABC):
         if self.debug:
             self.mem_state[select_index] = MemoryStateInt.RESERVED
 
+        #  check if index is contiguous in page
+        for i in range(0, len(select_index), self.page_size):
+            assert torch.all(
+                select_index[i : i + self.page_size] == torch.arange(
+                    select_index[i], select_index[i] + self.page_size
+                )
+            )
         return select_index
 
     @synchronized()
