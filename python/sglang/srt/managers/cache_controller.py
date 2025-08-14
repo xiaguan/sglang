@@ -241,7 +241,7 @@ class HiCacheController:
         # todo: move backend initialization to storage backend module
         if storage_backend is not None:
             self.storage_backend_type = storage_backend
-            from sglang.srt.mem_cache.hicache_storage import HiCacheFile, get_hash_str
+            from sglang.srt.mem_cache.hicache_storage import HiCacheFile, get_hash_str, HiCacheMemoryTest
 
             if storage_backend == "file":
                 self.storage_backend = HiCacheFile()
@@ -275,6 +275,9 @@ class HiCacheController:
                 self.storage_backend = HiCacheHF3FS.from_env_config(
                     rank, bytes_per_page, dtype
                 )
+                self.get_hash_str = get_hash_str
+            elif storage_backend == "test_storage":
+                self.storage_backend = HiCacheMemoryTest()
                 self.get_hash_str = get_hash_str
             else:
                 raise NotImplementedError(

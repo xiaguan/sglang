@@ -201,3 +201,94 @@ class HiCacheFile(HiCacheStorage):
             logger.info("Cleared all entries in HiCacheFile storage.")
         except Exception as e:
             logger.error(f"Failed to clear HiCacheFile storage: {e}")
+
+
+class HiCacheMemoryTest(HiCacheStorage):
+    """
+    In-memory implementation of HiCacheStorage for testing purposes.
+    """
+
+    def __init__(self):
+        self.storage = {}
+        self.tp_rank = get_tensor_model_parallel_rank()
+        self.tp_size = get_tensor_model_parallel_world_size()
+        self.tp_suffix = f"_{self.tp_rank}_{self.tp_size}" if self.tp_size > 1 else ""
+
+    def _get_suffixed_key(self, key: str) -> str:
+        return key + self.tp_suffix
+
+    def get(
+        self,
+        key: str,
+        target_location: Optional[torch.Tensor] = None,
+        target_sizes: Optional[Any] = None,
+    ) -> torch.Tensor | None:
+        key = self._get_suffixed_key(key)
+        if key in self.storage:
+            stored_tensor = self.storage[key]
+            if target_location is not None:
+                # Copy data to target location
+                target_location.copy_(stored_tensor)
+                return target_location
+            else:
+                # Return a copy of the stored tensor
+                return stored_tensor.clone()
+        return None
+
+    def batch_get(
+        self,
+        keys: List[str],
+        target_locations: Optional[List[torch.Tensor]] = None,
+        target_sizes: Optional[Any] = None,
+    ) -> List[torch.Tensor | None]:
+        results = []
+        for i, key in enumerate(keys):
+            target_location = target_locations[i] if target_locations and i < len(target_locations) else None
+            results.append(self.get(key, target_location))
+        return results
+
+    def set(
+        self,
+        key: str,
+        value: Optional[Any] = None,
+        target_location: Optional[Any] = None,
+        target_sizes: Optional[Any] = None,
+    ) -> bool:
+        key = self._get_suffixed_key(key)
+        try:
+            if value is not None:
+                # Store a copy of the tensor to avoid reference issues
+                self.storage[key] = value.clone()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to store tensor {key} in memory: {e}")
+            return False
+
+    def batch_set(
+        self,
+        keys: List[str],
+        values: Optional[Any] = None,
+        target_locations: Optional[Any] = None,
+        target_sizes: Optional[Any] = None,
+    ) -> bool:
+        if values is None:
+            return False
+        
+        for key, value in zip(keys, values):
+            if not self.set(key, value):
+                return False
+        return True
+
+    def exists(self, key: str) -> bool:
+        key = self._get_suffixed_key(key)
+        exist_result =  key in self.storage
+        return exist_result
+
+    def delete(self, key: str) -> bool:
+        if key in self.storage:
+            del self.storage[key]
+            return True
+        return False
+
+    def clear(self) -> None:
+        self.storage.clear()
